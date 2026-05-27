@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KØ-pÅdd Live</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" />
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --green: #00af79;
+      --dark: #061f18;
+      --felt: #083c2c;
+      --gold: #e7b85a;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 12% 8%, rgba(0, 175, 121, 0.24), transparent 32%),
+        radial-gradient(circle at 86% 12%, rgba(255, 0, 0, 0.12), transparent 28%),
+        radial-gradient(circle at 70% 82%, rgba(231, 184, 90, 0.10), transparent 30%),
+        linear-gradient(180deg, #04130f 0%, #083c2c 44%, #04130f 100%);
+      color: #e9f5f1;
+    }
+
+    .logo-glow { filter: drop-shadow(0 0 18px rgba(0, 175, 121, 0.45)); }
+
+    .glass {
+      background: linear-gradient(180deg, rgba(8, 60, 44, 0.82), rgba(3, 20, 16, 0.78));
+      border: 1px solid rgba(0, 175, 121, 0.24);
+      box-shadow: 0 22px 70px rgba(0,0,0,0.32);
+      backdrop-filter: blur(16px);
+    }
+
+    .soft-card {
+      background: rgba(5, 31, 24, 0.76);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .hero-grid {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: linear-gradient(to bottom, black 0%, transparent 82%);
+    }
+
+    .live-dot { animation: livePulse 1.7s infinite; }
+    @keyframes livePulse { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:.45; transform:scale(.72)} }
+
+    .shine { position: relative; overflow: hidden; }
+    .shine:after {
+      content: "";
+      position: absolute;
+      inset: -80% auto auto -60%;
+      width: 55%;
+      height: 260%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      transform: rotate(22deg);
+      transition: 0.8s;
+    }
+    .shine:hover:after { left: 120%; }
+
+    .video-frame {
+      aspect-ratio: 16 / 9;
+      background: radial-gradient(circle at center, rgba(0,175,121,0.12), rgba(0,0,0,0.86));
+    }
+  </style>
+</head>
+
+<body class="min-h-screen overflow-x-hidden">
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50 border-b border-[#00af79]/20 bg-black/55 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+      <a href="index.html" class="flex items-center gap-3">
+        <img src="https://koepd.github.io/koepd/koepdlogo.png" alt="KØ-pÅdd logo" class="h-12 w-auto logo-glow" />
+      </a>
+
+      <nav class="hidden items-center gap-8 text-sm font-semibold text-gray-200 md:flex">
+        <a href="live.html" class="flex items-center gap-2 text-[#00af79]">
+          <span id="headerLiveDot" class="h-2.5 w-2.5 rounded-full bg-gray-500"></span> Live
+        </a>
+        <a href="index.html#eventer" class="hover:text-[#00af79]">Eventer</a>
+        <a href="liga/index.html" class="hover:text-[#00af79]">KFL</a>
+        <a href="liga/tipping.html" class="hover:text-[#00af79]">Tips</a>
+        <a href="index.html#kousporten" class="hover:text-[#00af79]">KØ-sporten</a>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <a href="https://www.youtube.com/@koepd" target="_blank" class="hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold hover:border-red-500/60 hover:bg-red-500/10 sm:inline-flex">
+          <i class="fab fa-youtube mr-2 text-red-500"></i>YouTube
+        </a>
+        <a href="index.html#send-inn" class="rounded-2xl bg-[#00af79] px-4 py-2 text-sm font-black text-black hover:bg-white">
+          Send inn
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- GLOBAL LIVE BANNER - vises på portalen når KØ-pÅdd er live -->
+  <section id="globalLiveBanner" class="hidden sticky top-[73px] z-40 border-b border-red-500/30 bg-red-500/10 px-5 py-3 backdrop-blur-xl lg:px-8">
+    <div class="mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div class="flex items-center gap-4">
+        <div id="globalLiveDotWrap" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-500/20 text-red-300">
+          <span class="h-3 w-3 rounded-full bg-red-500 live-dot"></span>
+        </div>
+
+        <div>
+          <p id="globalLiveKicker" class="text-xs font-black uppercase tracking-[0.26em] text-red-300">KØ-pÅdd LIVE nå</p>
+          <p id="globalLiveTitle" class="mt-0.5 font-black text-white">KØ-pÅdd er live</p>
+          <p id="globalLiveSubtitle" class="hidden text-sm text-gray-300 md:block">Kommentert sending pågår.</p>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <a id="globalLiveWatchLink" href="live.html" class="rounded-2xl bg-red-500 px-5 py-2.5 text-center text-sm font-black text-white hover:bg-white hover:text-black">
+          Se sendingen
+        </a>
+        <a id="globalLiveEventLink" href="#" class="hidden rounded-2xl border border-[#00af79]/50 bg-[#00af79]/10 px-5 py-2.5 text-center text-sm font-black text-[#9effdf] hover:bg-[#00af79]/20">
+          Åpne event
+        </a>
+      </div>
+    </div>
+  </section>
+
+
+  <main>
+    <!-- HERO / LIVE PLAYER -->
+    <section class="relative overflow-hidden px-5 pb-12 pt-12 lg:px-8 lg:pb-18 lg:pt-16">
+      <div class="hero-grid absolute inset-0 opacity-70"></div>
+      <div class="absolute left-1/2 top-28 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[#00af79]/14 blur-[120px]"></div>
+
+      <div class="relative mx-auto max-w-7xl">
+        <div class="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div>
+            <div id="liveBadge" class="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-gray-300">
+              <span class="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-gray-400"></span>
+              Sjekker live-status
+            </div>
+
+            <h1 id="liveTitle" class="mt-5 text-5xl font-black leading-tight md:text-7xl">
+              KØ-pÅdd Live
+            </h1>
+
+            <p id="liveSubtitle" class="mt-5 max-w-3xl text-xl leading-8 text-gray-300">
+              Kommentert køsport, sendinger og liveopplevelser fra KØ-pÅdd.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <a id="youtubeDirectBtn" href="https://www.youtube.com/@koepd" target="_blank" class="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-3 font-black text-red-200 hover:bg-red-500/20">
+              <i class="fab fa-youtube mr-2"></i>YouTube
+            </a>
+            <a id="linkedEventBtn" href="#" class="hidden rounded-2xl bg-[#00af79] px-5 py-3 font-black text-black hover:bg-white">
+              Åpne eventeride
+            </a>
+          </div>
+        </div>
+
+        <div class="grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
+          <section class="glass rounded-[2rem] p-4 md:p-5">
+            <div id="videoWrapper" class="video-frame overflow-hidden rounded-[1.5rem] border border-white/10">
+              <div id="offlinePlayer" class="flex h-full min-h-[260px] flex-col items-center justify-center p-8 text-center md:min-h-[420px]">
+                <div class="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white/10 text-3xl">
+                  <i class="fa-solid fa-video-slash text-gray-300"></i>
+                </div>
+                <p class="text-sm font-black uppercase tracking-[0.25em] text-[#00af79]">Ikke live akkurat nå</p>
+                <h2 class="mt-3 text-3xl font-black md:text-5xl">Neste sending kommer</h2>
+                <p class="mt-4 max-w-xl text-gray-400">
+                  Når KØ-pÅdd går live, vises streamen automatisk her fra Live Control i adminpanelet.
+                </p>
+              </div>
+
+              <iframe
+                id="youtubeEmbed"
+                class="hidden h-full min-h-[260px] w-full md:min-h-[520px]"
+                src=""
+                title="KØ-pÅdd Live"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowfullscreen>
+              </iframe>
+            </div>
+
+            <div id="liveNotice" class="mt-4 rounded-2xl border border-[#00af79]/20 bg-[#00af79]/10 p-4 text-sm leading-6 text-gray-300">
+              KØ-pÅdd viser at køsport kan være mer enn et stille kamera: kommentering, kontekst, opplevelse og miljøet.
+            </div>
+          </section>
+
+          <aside class="space-y-6">
+            <section class="glass rounded-[2rem] p-6">
+              <p class="text-sm font-black uppercase tracking-[0.28em] text-[#00af79]">Livesenter</p>
+              <h2 class="mt-3 text-3xl font-black">Sendingen</h2>
+
+              <div class="mt-6 space-y-3 text-sm">
+                <div class="rounded-2xl bg-white/5 p-4">
+                  <p class="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Status</p>
+                  <p id="statusText" class="mt-2 text-xl font-black">Laster...</p>
+                </div>
+
+                <div class="rounded-2xl bg-white/5 p-4">
+                  <p class="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Utvalgt match</p>
+                  <p id="featuredMatch" class="mt-2 text-xl font-black">-</p>
+                </div>
+
+                <div class="rounded-2xl bg-white/5 p-4">
+                  <p class="text-xs font-black uppercase tracking-[0.18em] text-gray-400">Koblet event</p>
+                  <p id="linkedEventTitle" class="mt-2 text-xl font-black">Ingen event koblet</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="glass rounded-[2rem] p-6">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-black uppercase tracking-[0.28em] text-[#00af79]">Livechat</p>
+                  <h2 class="mt-3 text-3xl font-black">Se sammen</h2>
+                </div>
+                <div id="chatBadge" class="rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-gray-300">
+                  Av
+                </div>
+              </div>
+
+              <div id="chatWrapper" class="mt-5 hidden overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                <iframe
+                  id="youtubeChat"
+                  class="h-[520px] w-full"
+                  src=""
+                  title="KØ-pÅdd Live Chat"
+                  frameborder="0">
+                </iframe>
+              </div>
+
+              <div id="chatOffline" class="mt-5 rounded-2xl border border-white/10 bg-black/30 p-5 text-gray-400">
+                Chatten åpner automatisk når KØ-pÅdd er live og YouTube-video er satt i adminpanelet.
+              </div>
+            </section>
+
+            <section class="glass rounded-[2rem] p-6">
+              <p class="text-sm font-black uppercase tracking-[0.28em] text-[#00af79]">KØ-pÅdd DNA</p>
+              <h2 class="mt-3 text-3xl font-black">Mer enn kamera</h2>
+              <p class="mt-4 text-gray-400 leading-7">
+                Bakgrunnen vår er streaming, kommentering og egne eventer. Portalen gjør at liveopplevelsen kan leve sammen med CueScore, tips og miljø.
+              </p>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- EVENT / CUESCORE -->
+    <section class="px-5 py-12 lg:px-8">
+      <div class="mx-auto max-w-7xl grid gap-6 lg:grid-cols-3">
+        <article class="glass rounded-[2rem] p-6 lg:col-span-2">
+          <p class="text-sm font-black uppercase tracking-[0.28em] text-[#00af79]">Ekstra skjerm</p>
+          <h2 class="mt-3 text-4xl font-black">Følg sendingen smartere</h2>
+          <p class="mt-4 max-w-2xl text-lg leading-8 text-gray-400">
+            Når en sending er koblet til et event, kan du åpne eventeride, CueScore og tips direkte fra KØ-pÅdd.
+          </p>
+
+          <div class="mt-8 grid gap-4 md:grid-cols-3">
+            <div class="soft-card rounded-3xl p-5">
+              <i class="fa-solid fa-video mb-4 text-2xl text-[#00af79]"></i>
+              <h3 class="font-black">Kommentert sending</h3>
+              <p class="mt-2 text-sm text-gray-400">KØ-pÅdd sin kjerne: formidling og stemning.</p>
+            </div>
+            <div class="soft-card rounded-3xl p-5">
+              <i class="fa-solid fa-table-list mb-4 text-2xl text-[#00af79]"></i>
+              <h3 class="font-black">CueScore</h3>
+              <p class="mt-2 text-sm text-gray-400">Turneringsdata, bracket og resultater hos kilden.</p>
+            </div>
+            <div class="soft-card rounded-3xl p-5">
+              <i class="fa-solid fa-chart-simple mb-4 text-2xl text-[#00af79]"></i>
+              <h3 class="font-black">Tips</h3>
+              <p class="mt-2 text-sm text-gray-400">Tips uten gambling når dette er aktivert.</p>
+            </div>
+          </div>
+        </article>
+
+        <aside class="glass rounded-[2rem] p-6">
+          <p class="text-sm font-black uppercase tracking-[0.28em] text-[#00af79]">Lenker</p>
+          <h2 class="mt-3 text-3xl font-black">Hurtigvalg</h2>
+
+          <div class="mt-6 space-y-3">
+            <a id="eventQuickLink" href="#" class="hidden rounded-2xl bg-[#00af79] px-5 py-4 text-center font-black text-black hover:bg-white">
+              Åpne eventeride
+            </a>
+
+            <a id="cuescoreQuickLink" href="#" target="_blank" class="hidden rounded-2xl border border-[#00af79]/50 bg-[#00af79]/10 px-5 py-4 text-center font-black text-[#9effdf] hover:bg-[#00af79]/20">
+              Åpne CueScore
+            </a>
+
+            <a href="https://www.youtube.com/@koepd" target="_blank" class="block rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-center font-black text-red-200 hover:bg-red-500/20">
+              Gå til YouTube-kanalen
+            </a>
+
+            <a href="index.html" class="block rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-center font-black text-white hover:border-[#00af79]/50 hover:bg-[#00af79]/10">
+              Til forsiden
+            </a>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- WHEN OFFLINE -->
+    <section class="px-5 py-12 lg:px-8">
+      <div class="mx-auto max-w-7xl rounded-[2.5rem] border border-[#00af79]/30 bg-[#00af79]/10 p-8 md:p-12">
+        <div class="grid gap-8 lg:grid-cols-[1fr_.9fr] lg:items-center">
+          <div>
+            <p class="text-sm font-black uppercase tracking-[0.28em] text-[#9effdf]">Når vi ikke er live</p>
+            <h2 class="mt-3 text-4xl font-black md:text-6xl">KØ-pÅdd er fortsatt åpent</h2>
+            <p class="mt-5 max-w-2xl text-lg leading-8 text-gray-300">
+              Portalen kan fortsatt vise eventer, CueScore-dekning, KFL, OPEN og tips — selv når sendingen ikke er på.
+            </p>
+          </div>
+          <div class="rounded-[2rem] bg-black/30 p-6">
+            <div class="space-y-3 text-gray-300">
+              <p><i class="fa-solid fa-check mr-3 text-[#00af79]"></i>Følg fremhevede eventer</p>
+              <p><i class="fa-solid fa-check mr-3 text-[#00af79]"></i>Åpne CueScore via eventeride</p>
+              <p><i class="fa-solid fa-check mr-3 text-[#00af79]"></i>Tips og miljø kommer videre</p>
+            </div>
+            <a href="index.html#eventer" class="mt-6 block rounded-2xl bg-[#00af79] px-6 py-4 text-center text-lg font-black text-black hover:bg-white">
+              Se eventer
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-[#00af79]/20 bg-black/70 px-5 py-12 lg:px-8">
+    <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 text-center md:flex-row md:text-left">
+      <div>
+        <img src="https://koepd.github.io/koepd/koepdlogo.png" alt="KØ-pÅdd logo" class="mx-auto h-12 logo-glow md:mx-0" />
+        <p class="mt-4 text-gray-400">KØ-pÅdd • En sportsopplevelse rundt KØ-sporten</p>
+      </div>
+      <div class="flex gap-4 text-2xl">
+        <a href="https://www.youtube.com/@koepd" target="_blank" class="text-gray-400 hover:text-red-500"><i class="fab fa-youtube"></i></a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJluYUuY1RmW72md_okb7UWrUcuX6ojWA",
+      authDomain: "koepd-73aed.firebaseapp.com",
+      databaseURL: "https://koepd-73aed-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "koepd-73aed",
+      storageBucket: "koepd-73aed.firebasestorage.app",
+      messagingSenderId: "373423475046",
+      appId: "1:373423475046:web:025def6e66075938cfe0a7"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    
+
+    function updateHeaderLiveDot(live) {
+      const dot = document.getElementById("headerLiveDot");
+      if (!dot) return;
+
+      if (live && live.isLive === true) {
+        if (live.hasCommentary === true) {
+          dot.className = "h-2.5 w-2.5 rounded-full bg-red-500 live-dot";
+        } else {
+          dot.className = "h-2.5 w-2.5 rounded-full bg-[#00af79] live-dot";
+        }
+      } else {
+        dot.className = "h-2.5 w-2.5 rounded-full bg-gray-500";
+      }
+    }
+
+function updateGlobalLiveBanner(live) {
+      const banner = document.getElementById("globalLiveBanner");
+      const kicker = document.getElementById("globalLiveKicker");
+      const title = document.getElementById("globalLiveTitle");
+      const subtitle = document.getElementById("globalLiveSubtitle");
+      const eventLink = document.getElementById("globalLiveEventLink");
+      const dotWrap = document.getElementById("globalLiveDotWrap");
+      const watchLink = document.getElementById("globalLiveWatchLink");
+
+      if (!banner) return;
+
+      const shouldShow = live && live.isLive === true && live.showOnFrontpage === true;
+
+      if (!shouldShow) {
+        banner.classList.add("hidden");
+        return;
+      }
+
+      const hasCommentary = live.hasCommentary === true;
+
+      banner.classList.remove("hidden");
+
+      if (hasCommentary) {
+        banner.className = "sticky top-[73px] z-40 border-b border-red-500/30 bg-red-500/10 px-5 py-3 backdrop-blur-xl lg:px-8";
+        if (dotWrap) dotWrap.className = "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-red-500/20 text-red-300";
+        if (kicker) kicker.textContent = "KØ-pÅdd LIVE nå";
+        if (title) title.textContent = live.title || "KØ-pÅdd er live";
+        if (watchLink) watchLink.className = "rounded-2xl bg-red-500 px-5 py-2.5 text-center text-sm font-black text-white hover:bg-white hover:text-black";
+      } else {
+        banner.className = "sticky top-[73px] z-40 border-b border-[#00af79]/30 bg-[#00af79]/10 px-5 py-3 backdrop-blur-xl lg:px-8";
+        if (dotWrap) dotWrap.className = "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#00af79]/20 text-[#9effdf]";
+        if (kicker) kicker.textContent = "Livekamera aktivt";
+        if (title) title.textContent = live.title || "Livekamera aktivt";
+        if (watchLink) watchLink.className = "rounded-2xl bg-[#00af79] px-5 py-2.5 text-center text-sm font-black text-black hover:bg-white";
+      }
+
+      if (subtitle) {
+        const parts = [];
+        if (live.subtitle) parts.push(live.subtitle);
+        if (live.featuredMatch) parts.push(`Utvalgt match: ${live.featuredMatch}`);
+        subtitle.textContent = parts.length
+          ? parts.join(" • ")
+          : (hasCommentary ? "Kommentert sending pågår." : "Følg bordet direkte.");
+      }
+
+      if (eventLink) {
+        if (live.eventId) {
+          eventLink.href = `event.html?id=${encodeURIComponent(live.eventId)}`;
+          eventLink.classList.remove("hidden");
+        } else {
+          eventLink.href = "#";
+          eventLink.classList.add("hidden");
+        }
+      }
+    }
+
+function setText(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value || "";
+    }
+
+    function normalizeEmbedUrl(live) {
+      if (live.youtubeEmbedUrl) return live.youtubeEmbedUrl;
+
+      const videoId = live.youtubeVideoId;
+      return videoId ? `https://www.youtube.com/embed/${videoId}` : "";
+    }
+
+    function updateLiveBadge(isLive, statusText, hasCommentary) {
+      const badge = document.getElementById("liveBadge");
+      const navDot = document.getElementById("headerLiveDot");
+
+      if (isLive && hasCommentary) {
+        badge.className = "inline-flex items-center rounded-full border border-red-500/40 bg-red-500/15 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-red-200";
+        badge.innerHTML = `<span class="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-red-500 live-dot"></span>${statusText || "Kommentert live"}`;
+        if (navDot) navDot.className = "h-2.5 w-2.5 rounded-full bg-red-500 live-dot";
+      } else if (isLive) {
+        badge.className = "inline-flex items-center rounded-full border border-[#00af79]/40 bg-[#00af79]/15 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#9effdf]";
+        badge.innerHTML = `<span class="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#00af79] live-dot"></span>${statusText || "Livekamera aktivt"}`;
+        if (navDot) navDot.className = "h-2.5 w-2.5 rounded-full bg-[#00af79] live-dot";
+      } else {
+        badge.className = "inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-gray-300";
+        badge.innerHTML = `<span class="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-gray-400"></span>${statusText || "Ikke live akkurat nå"}`;
+        if (navDot) navDot.className = "h-2.5 w-2.5 rounded-full bg-gray-400";
+      }
+    }
+
+    function showPlayer(live) {
+      const iframe = document.getElementById("youtubeEmbed");
+      const offline = document.getElementById("offlinePlayer");
+      const embedUrl = normalizeEmbedUrl(live);
+
+      if (live.isLive && embedUrl) {
+        iframe.src = embedUrl;
+        iframe.classList.remove("hidden");
+        offline.classList.add("hidden");
+      } else {
+        iframe.src = "";
+        iframe.classList.add("hidden");
+        offline.classList.remove("hidden");
+      }
+    }
+
+    function getEmbedDomain() {
+      const hostname = window.location.hostname;
+      if (!hostname || hostname === "localhost" || hostname === "127.0.0.1") {
+        return "";
+      }
+      return hostname;
+    }
+
+    function showYouTubeChat(live) {
+      const chatWrapper = document.getElementById("chatWrapper");
+      const chatOffline = document.getElementById("chatOffline");
+      const chatIframe = document.getElementById("youtubeChat");
+      const chatBadge = document.getElementById("chatBadge");
+
+      const videoId = live.youtubeVideoId || "";
+      const domain = getEmbedDomain();
+
+      if (live.isLive && videoId && domain) {
+        chatIframe.src = `https://www.youtube.com/live_chat?v=${encodeURIComponent(videoId)}&embed_domain=${encodeURIComponent(domain)}`;
+        chatWrapper.classList.remove("hidden");
+        chatOffline.classList.add("hidden");
+        chatBadge.textContent = "Åpen";
+        chatBadge.className = "rounded-2xl bg-red-500/15 px-3 py-2 text-xs font-black text-red-200 border border-red-500/30";
+      } else {
+        chatIframe.src = "";
+        chatWrapper.classList.add("hidden");
+        chatOffline.classList.remove("hidden");
+
+        if (live.isLive && videoId && !domain) {
+          chatOffline.textContent = "YouTube-chat krever at siden kjøres fra et domene, for eksempel koepd.no. Den vises ikke korrekt lokalt fra fil.";
+        } else {
+          chatOffline.textContent = "Chatten åpner automatisk når KØ-pÅdd er live og YouTube-video er satt i adminpanelet.";
+        }
+
+        chatBadge.textContent = "Av";
+        chatBadge.className = "rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-gray-300";
+      }
+    }
+
+    async function loadLinkedEvent(eventId) {
+      const eventTitle = document.getElementById("linkedEventTitle");
+      const linkedEventBtn = document.getElementById("linkedEventBtn");
+      const eventQuickLink = document.getElementById("eventQuickLink");
+      const cuescoreQuickLink = document.getElementById("cuescoreQuickLink");
+
+      linkedEventBtn.classList.add("hidden");
+      eventQuickLink.classList.add("hidden");
+      cuescoreQuickLink.classList.add("hidden");
+
+      if (!eventId) {
+        eventTitle.textContent = "Ingen event koblet";
+        return;
+      }
+
+      const snapshot = await db.ref("portal/events/" + eventId).once("value");
+      const event = snapshot.val();
+
+      if (!event) {
+        eventTitle.textContent = "Event ikke funnet";
+        return;
+      }
+
+      eventTitle.textContent = event.title || "Koblet event";
+
+      const eventUrl = `event.html?id=${encodeURIComponent(eventId)}`;
+      linkedEventBtn.href = eventUrl;
+      linkedEventBtn.classList.remove("hidden");
+      eventQuickLink.href = eventUrl;
+      eventQuickLink.classList.remove("hidden");
+
+      const cuescoreUrl = event?.cuescore?.url || "";
+      if (cuescoreUrl) {
+        cuescoreQuickLink.href = cuescoreUrl;
+        cuescoreQuickLink.classList.remove("hidden");
+      }
+    }
+
+    function updateLivePage(live) {
+      live = live || {};
+
+      const isLive = live.isLive === true;
+      const statusText = live.statusText || (isLive ? "Live nå" : "Ikke live akkurat nå");
+
+      document.title = isLive ? "KØ-pÅdd LIVE nå" : "KØ-pÅdd Live";
+
+      updateLiveBadge(isLive, statusText, live.hasCommentary === true);
+      showPlayer(live);
+      showYouTubeChat(live);
+
+      setText("liveTitle", live.title || (isLive ? (live.hasCommentary === true ? "KØ-pÅdd Live" : "Livekamera aktivt") : "Ingen sending akkurat nå"));
+      setText("liveSubtitle", live.subtitle || (isLive ? (live.hasCommentary === true ? "Kommentert sending pågår." : "Følg bordet direkte.") : "Når KØ-pÅdd går live, vises sendingen her."));
+      setText("statusText", statusText);
+      setText("featuredMatch", live.featuredMatch || "-");
+
+      const youtubeDirectBtn = document.getElementById("youtubeDirectBtn");
+      if (live.youtubeUrl) {
+        youtubeDirectBtn.href = live.youtubeUrl;
+        youtubeDirectBtn.innerHTML = `<i class="fab fa-youtube mr-2"></i>Åpne sending`;
+      } else {
+        youtubeDirectBtn.href = "https://www.youtube.com/@koepd";
+        youtubeDirectBtn.innerHTML = `<i class="fab fa-youtube mr-2"></i>YouTube`;
+      }
+
+      loadLinkedEvent(live.eventId || "");
+    }
+
+    db.ref("portal/live").on("value", (snapshot) => {
+      const live = snapshot.val() || {};
+      updateGlobalLiveBanner(live);
+      updateHeaderLiveDot(live);
+      updateLivePage(live);
+    });
+  </script>
+</body>
+</html>
